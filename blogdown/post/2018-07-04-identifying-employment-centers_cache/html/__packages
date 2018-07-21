@@ -1,0 +1,13 @@
+base
+data.table
+sp
+rgdal
+Matrix
+spData
+spdep
+rgeos
+igraph
+tigris
+ggplot2
+ineq
+rmapshaper

@@ -1,0 +1,326 @@
+---
+title: Urban Morphology & Landscape Metrics
+author: Nikhil Kaza
+date: '2018-07-01'
+slug: urban-morphology-landscape-metrics
+comments: true
+categories:
+  - R
+tags:
+  - urban-morphology
+  - urban-change
+  - new-urban-analytics
+header:
+  caption: 'Urban landscape metrics'
+  image: 'headers/lmetrics_us_kaza2013.jpg'
+summary: Creating urban landscape metrics
+math: true
+output:
+  blogdown::html_page:
+    toc: true
+    fig_width: 7
+    number_sections: false
+    toc_depth: 1
+---
+
+```{r globaloptions, include = FALSE, echo=FALSE}
+knitr::opts_chunk$set(warning  = FALSE, collapse = TRUE, comment = "#", message = FALSE)
+library(tidyverse)
+library(raster)
+library(rasterVis)
+library(here)
+library(knitr)
+library(kableExtra)
+
+knitr::knit_hooks$set(inline = function(x) { if(!is.numeric(x)){ x }else{ prettyNum(round(x,2), big.mark=",") } })
+
+```
+
+
+
+# Requirements
+
+In this post, I am going to show how to characterise urban form using urban landscape metrics. This requires [R](http://r-project.org), the many libraries including [raster](https://cran.r-project.org/web/packages/raster/),[sp](https://cran.r-project.org/web/packages/sp/), [rgdal](https://cran.r-project.org/web/packages/rgdal), [rgeos](https://cran.r-project.org/package=rgeos) [mmand](https://cran.r-project.org/package=mmand
+) and [SDMTools](http://www.rforge.net/SDMTools/). You should install them, as necessary, with `install.packages()` command.
+
+Most of the methods and results are discussed in [Kaza (2013)](https://nkaza.github.io/publication/kaza_changing_2013/) and [McCarty & Kaza (2015)](https://nkaza.github.io/publication/kazawpyo/). Please refer to those articles.
+
+# Additional resources
+I strongly recommend that you read through [R spatial](http://rspatial.org/index.html) by [Robert Hijmans](https://desp.ucdavis.edu/people/robert-j-hijmans), the author of the `raster` package.
+
+# Acquire data
+
+I am going to use a [small section](data/posts/lmetrics/c11_37063.zip) of the [US National Land Cover Dataset for 2011](https://www.mrlc.gov/nlcd11_data.php) from United States Geological Survey. You are welcome to use any categorical raster data.
+
+```{r echo=FALSE}
+lc <- here("static/data/posts/lmetrics", "c11_37063.img")%>% raster %>% ratify
+nlcd_class <- read.csv(here("static/data/posts/lmetrics", "legend_csv.csv"), colClasses = c("integer", "character", "character", "character", "NULL"), fileEncoding="UTF-8-BOM")
+
+rat <- levels(lc)[[1]] %>% merge(nlcd_class, by.x="ID", by.y="Value")
+
+levels(lc) <- rat
+```
+
+# Explore the data
+
+Intialise the packages and read them into R along with the raster.
+```{r eval = FALSE}
+library(raster)
+library(rasterVis)
+lc <- raster(path.to.file)
+```
+
+The land cover is assigned to the object `lc`. I prepared it so that  it is a categorical raster with the right colors in the colortable. See attributes below.
+
+```{r}
+lc
+```
+
+
+Here is the frequency table of counts of cells in various categories and visualisation of the raster.
+
+```{r}
+freq(lc)
+
+levelplot(lc, att="Classification", ylab=NULL, xlab=NULL, scales=list(y=list(draw=FALSE), x=list(draw=FALSE)),  col.regions=levels(lc)[[1]]$colortable, main="2011 Land Cover")
+```
+
+
+# Analyse the raster
+
+Select the categories that are urban, These are Values `21,22,23,24` and set them to 1. Set the rest to 0. Notice the `%in%` command doing most of the work. However, this may not be the best method for a large raster. Perhaps use `reclassify` function from the `raster` package to achieve the same output
+
+```{r}
+urb_lc <- lc %in% 21:24 %>% ratify
+freq(urb_lc)
+(p <- levelplot(urb_lc, att="ID", ylab=NULL, xlab=NULL, main = "Urban Land Cover", colorkey=FALSE, scales=list(y=list(draw=FALSE), x=list(draw=FALSE))))
+```
+
+Now construct the urban patches from the urban raster. For this you need `SDMTools` library. A naive urban landscape metrics are ready to be calculated from the binary image.
+
+```{r}
+library(SDMTools)
+ccl.mat <- ConnCompLabel(urb_lc)
+(naivemetrics1 <- ClassStat(urb_lc, cellsize = res(urb_lc)[1], bkgd=0))
+```
+
+`ConnComplabel` is a 1-pass implementation of connected components. It will identify disjunct patches by clustering the neighboring cells with same values into a single patch. But it is useful to look kinds of patches it produces for this data.
+
+```{r}
+head(freq(ccl.mat))
+head(freq(urb_lc))
+```
+
+Notice the number of cells in `patch 0` of the `ccl.mat`. It is the same as background count of the cells in the urban raster. This should be expected if the background is connected. What is, however, interesting is the count of cells that are urban in `urb_lc` and the number of cells in a single patch `patch 2` in `ccl.mat`. This means most of urban area in this raster is connected and forms a single patch, even though visually we can see distinct neighborhoods. Most of these urban areas are connected through roads. These roads should not technically should not count towards urban area characteristics.  To do this problem, we will have to use a [Highways vector file]("data/posts/lmetrics/Highways.zip") an remove them from the raster. To read the vector file and to do some vector operations, we need `rgdal`, `sp` and `rgeos` libraries. Load them and modify the path suitably to read the Highway file.
+
+```{r}
+library(rgdal)
+library(rgeos)
+library(sp)
+highways <- readOGR(dsn=here("static/data/posts/lmetrics/Highways", "Highways.shp"), layer="Highways" )
+```
+
+The highways and the lc objects have different projections and coordinate systems. We need to align them if we can do any operations. Visualise them by styling the width of the line using `lwd` parameter. Note that `Width` attribute is a factor and therefore numerical operations are not permitted. We need to convert it to numerical value before styling the lines.
+
+```{r}
+proj4string(highways) == proj4string(urb_lc)
+highways <- spTransform(highways, CRS(proj4string(urb_lc)))
+p + layer(sp.lines(highways, lwd=as.numeric(highways$Width)/24, col='red'))
+```
+
+Buffer the highways with a specified width. There seems to be a road without a width in the file. We will have to deal with this issue by imputing it or ignoring this road segment. For this blog, I am removing it.
+
+```{r}
+highways <- highways[!is.na(highways@data$Width),]
+highways@data$width_m <- as.numeric(highways@data$Width)*0.3048
+highways_buffer <- gBuffer(highways, byid=TRUE, width=highways@data$width_m)
+```
+
+Now extract the cell numbers that overlap with the buffer and set those values to 0.
+```{r, cache=TRUE}
+v <- extract(urb_lc, highways_buffer, cellnumbers=TRUE, small=T)
+v2 <- unlist(lapply(v, function(x){x[,'cell']}))
+urb_lc2 <- urb_lc
+urb_lc2[v2] <- 0
+p2 <- levelplot(urb_lc2, att="ID", ylab=NULL, xlab=NULL, main="Urban (Highways Removed)", colorkey=FALSE, scales=list(y=list(draw=FALSE), x=list(draw=FALSE)))
+print(p, split=c(1, 1, 2, 1), more=TRUE)
+print(p2, split=c(2, 1, 2, 1))
+metrics2 <- ClassStat(urb_lc2, cellsize = res(urb_lc)[1], bkgd=0)
+```
+
+The before picture is on the left and the after is on the right. We can now see some improvement, but it is not great. This because the vectorfiles are not perfectly aligned with the raster files and therefore any overlay operations leave a significant number of small *error* patches.To deal with this we need to turn to morphological operations borrowed from Image Processing literature. 
+
+# A digression into morphological operations
+
+There are four basic operations. I will go through them one by one.  But first we need to convert the raster into a matrix that the library `mmand` can process.
+
+```{r}
+require(mmand)
+urb_mat <- as.matrix(urb_lc2)
+urb_lc3 <- urb_lc2
+```
+
+## Structuring elements
+
+Morphological operations require something called a structuring element that probes the image. 
+![Borrowed from https://www.cs.auckland.ac.nz/courses/compsci773s1c/lectures/ImageProcessing-html/topic4.htm](/post/2018-07-01-urban-morphology-landscape-metrics_files/morph-probing.gif)
+
+Structuring elements can be of any dimension But usually they are of odd because it is easier to locate the center.  For this exercise, I am using a structuring element of a 3x3 matrix of 1s. If you want a fancy structuring element like a cross, create a binary image with 0s and 1s such as k2 below.
+
+```{r}
+(k <- matrix(1,nrow=3,ncol=3))
+k2 <- k
+k2[1,1] <- k2[1,3] <- k2[3,1] <- k2[3,3]<- 0
+k2
+```
+
+## Erosion
+
+The erosion of a binary image $A$ by a structuring element $S$ (denoted $A \ominus S$) produces a new binary image $B$ of the dimensions of $A$, with 1s in the locations, where the structuring element $S$ 'fits' $A$. i.e. If the center of $S$ is placed on $(x,y)$ of $A$ and if 1s of the structuring element also correspond to the 1s of $A$, then $(x,y)$ of B is rendered 1 otherwise 0. See the effect of erosion on the image below
+
+```{r}
+urb_mat2 <- erode(urb_mat, k)
+urb_lc3[] <- urb_mat2
+urb_lc3 <- ratify(urb_lc3)
+p3 <- levelplot(urb_lc3, att="ID", ylab=NULL, xlab=NULL, main = "Erosion (k)", colorkey=FALSE, scales=list(y=list(draw=FALSE), x=list(draw=FALSE)))
+print(p2, split=c(1, 1, 2, 1), more=TRUE)
+print(p3, split=c(2, 1, 2, 1))
+```
+
+
+## Dilation
+
+The dilation of a binary image $A$ by a structuring element $S$ (denoted $A \oplus S$) produces a new binary image $B$ of the dimensions of $A$, with 1s in the locations, where the structuring element $S$ 'hits' $A$. i.e. If the center of $S$ is placed on $(x,y)$ of $A$ and if 1s of the structuring element also correspond at least some of the 1s of $A$, then $(x,y)$ of B is rendered 1 otherwise 0. Dilation has the opposite effect to erosion -- it adds a layer of pixels to both the inner and outer boundaries of regions. See the effect of dilation on the original image below.
+
+```[r]
+urb_mat2 <- dilate(urb_mat, k)
+```
+
+```{r echo = FALSE}
+urb_mat2 <- dilate(urb_mat, k)
+urb_lc3[] <- urb_mat2
+urb_lc3 <- ratify(urb_lc3)
+p3 <- levelplot(urb_lc3, att="ID", ylab=NULL, xlab=NULL, main ="Dilation (k)", colorkey=FALSE, scales=list(y=list(draw=FALSE), x=list(draw=FALSE)))
+print(p2, split=c(1, 1, 2, 1), more=TRUE)
+print(p3, split=c(2, 1, 2, 1))
+```
+
+## Closing 
+
+Closing is simply dilation followed by erosion: $A \bullet S = (A \oplus S) \ominus S$. Closing is so called because it can fill holes in the regions while keeping the initial region sizes. You can see the effect of closing compared to the original image below.
+
+```[r]
+urb_mat2 <- closing(urb_mat, k)
+```
+
+```{r echo = FALSE}
+urb_mat2 <- closing(urb_mat, k)
+urb_lc3[] <- urb_mat2
+urb_lc3 <- ratify(urb_lc3)
+p3 <- levelplot(urb_lc3, att="ID", ylab=NULL, xlab=NULL, main = "Closing (k)", colorkey=FALSE, scales=list(y=list(draw=FALSE), x=list(draw=FALSE)))
+print(p2, split=c(1, 1, 2, 1), more=TRUE)
+print(p3, split=c(2, 1, 2, 1))
+```
+
+
+## Opening 
+
+Opening is simply erosion followed by dilation: $A \circ S = (A \ominus S) \oplus S$. Opening is so called because it can open up a gap between objects connected by a thin bridge of pixels. Any regions that have survived the erosion are restored to their original size by the dilation. You can see the effect of opening compared to the original image below
+
+```[r]
+urb_mat2 <- opening(urb_mat, k)
+```
+
+```{r echo = FALSE}
+urb_mat2 <- opening(urb_mat, k)
+urb_lc3[] <- urb_mat2
+urb_lc3 <- ratify(urb_lc3)
+p3 <- levelplot(urb_lc3, att="ID", ylab=NULL, xlab=NULL, main = "Opening (k)", colorkey=FALSE, scales=list(y=list(draw=FALSE), x=list(draw=FALSE)))
+print(p2, split=c(1, 1, 2, 1), more=TRUE)
+print(p3, split=c(2, 1, 2, 1))
+```
+
+From the above experiments, it should be obvious that opening gives us the best option for urban landscape metrics. Experiment with other structuring elements.
+
+```{r echo = FALSE}
+urb_mat3 <- opening(urb_mat, k2)
+urb_lc4 <- urb_lc3
+urb_lc4[] <- urb_mat3
+urb_lc4 <- ratify(urb_lc4)
+p4 <- levelplot(urb_lc4, att="ID", ylab=NULL, xlab=NULL, main = "Opening (k2)", colorkey=FALSE, scales=list(y=list(draw=FALSE), x=list(draw=FALSE)))
+print(p2, split=c(1, 1, 3, 1), more=TRUE)
+print(p3, split=c(2, 1, 3, 1), more=TRUE)
+print(p4, split=c(3, 1, 3, 1))
+```
+
+# Landscape metrics
+
+Now we are ready to create some metrics. Let's create some metrics for each patch. Some of the key metrics are `n.cell` (number of cells), `area` (area of the patch) and `core.area.index` (area after eliminating edges). You can use these to further threshold the patches that might be too small to matter.
+
+```{r}
+ccl.mat <- ConnCompLabel(urb_lc3)
+#calculate the patch statistics
+ps.data = PatchStat(ccl.mat, cellsize = res(urb_lc)[1])
+summary(ps.data[,c('n.cell', 'area', 'core.area.index')])
+```
+
+As we can see from the summary statistics that there are some patches that of 9 cells. This should be clear because that is the structuring element we used. The area 8100 sq.m refer to 9x900 sq.m. Let's ignore the background patch (id=0) and explore the rest of the data
+
+```{r}
+library(reshape2)
+ps.data <- ps.data[ps.data$patchID!=0,]
+ps.dataid <- subset(ps.data, select = -c(patchID))
+ps.dataid <- mutate(ps.dataid, id=as.numeric(rownames(ps.data)))
+psstack <- melt(ps.dataid, id="id")
+pp <- qplot(value, data=psstack, log="x") + facet_wrap(~variable, scales="free")
+pp
+```
+
+It seems to me there are still some really small patches as evidenced the left skews of the distributions in n.cell, core.area.index and right skew in the perim.area.ratio. We can use a combination of thresholds on these indices to remove some 'error' patches that might skew our urban indices. I choose, $>=$0.15 for 'core.area.index' arbitrarily based on the histogram. Let's first calculate the class statistics without the modification and then do it with the modification.
+
+```{r}
+metrics3 <- ClassStat(urb_lc3, cellsize = res(urb_lc)[1], bkgd=0)
+ignore.patches <- ps.data[ps.data$core.area.index<0.15, "patchID"]
+urb_lc3[ccl.mat %in% ignore.patches] <- 0
+metrics4 <- ClassStat(urb_lc3, cellsize = res(urb_lc)[1], bkgd=0)
+```
+
+Compare the final metrics with the others along the way. I am going to convert the area to sq.km to make things easier to read.
+
+```{r}
+df<- as.data.frame(rbind(naivemetrics1, metrics2, metrics3, metrics4))
+df <- t(df)
+colnames(df) <- c("Naive", "Improv1", "Impov2", "Final")
+df[grep("area",row.names(df)), ]<- df[grep("area",row.names(df)), ]/10^6
+```
+
+```{r echo = FALSE}
+
+kable(df, digits=3) %>%
+    kable_styling("striped", full_width = F) %>%
+    row_spec(which(df[,4]/df[,1] >= 1.25 | df[,4]/df[,1] <= .75), bold = T, color = "white", background = "#D7261E")
+```
+
+Note that significant changes are observed in highlighted variables. In particular, number of patches change dramatically, as do the standard deviation of various indices. 
+
+# Extensions
+
+There are many more improvements possible to these indices. For example,
+
+- What happens when you use a different road network to remove the roads from the raster?
+- Different structuring elements for the morphological operations.
+- Different thresholds on different patch characteristics to remove erroneous urban patches.
+- Instead of treating urban as a single category, what are the results when we treat it as 4 different categories?
+- Perhaps explore more complex landscape metrics by characterising the configuration of urban and non-urban land cover.
+
+Let me know if you have other ideas.
+
+# Accomplishments
+
+- Reading and analysing raster data in R
+- Vector data operations (Reproject, Buffer)
+- Morphological operations
+- Visualising spatial data in R
+- Exploratory spatial data analysis
+- Landscape metrics.
+

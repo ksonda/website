@@ -1,0 +1,170 @@
+---
+draft: yes
+title: Using Blogdown and Github
+author: Nikhil Kaza
+date: '2018-06-30'
+slug: using-blogdown
+categories: 
+ - R
+tags:
+  - blogdown
+header:
+  caption: ''
+  image: ''
+summary: Quick guide to blogdown
+output:
+  blogdown::html_page:
+    toc: true
+    fig_width: 6
+    number_sections: false
+    toc_depth: 1
+---
+
+
+<div id="TOC">
+<ul>
+<li><a href="#requirements">Requirements</a></li>
+<li><a href="#additional-resources">Additional Resources</a></li>
+<li><a href="#in-rstudio">In RStudio</a></li>
+<li><a href="#creating-a-blog-post-in-rmarkdown">Creating a blog post in Rmarkdown</a></li>
+<li><a href="#github-account">GitHub Account</a></li>
+</ul>
+</div>
+
+<div id="requirements" class="section level1">
+<h1>Requirements</h1>
+<p>I strongly recommend <a href="http://r-project.org">R</a>, <a href="http://rstudio.com">Rstudio</a> and <a href="http://github.com">Github</a>. I choose the Github pages to host the website and am using blogdown based on Hugo. See <a href="https://alison.rbind.io/post/up-and-running-with-blogdown/">Alison Presmanes Hill’s post</a> for detailed introduction to creating a blogdown site. Or <a href="http://amber.rbind.io/blog/2016/12/19/creatingsite/">Amber Thomas’ post</a>. I stole most of the material for this post from their posts, mostly to teach myself how to create a blog and provide me with a template for future blogs.</p>
+</div>
+<div id="additional-resources" class="section level1">
+<h1>Additional Resources</h1>
+<p>Before you start, I recommend reading the following:</p>
+<ul>
+<li><a href="https://bookdown.org/yihui/blogdown/"><code>blogdown</code>: Creating Websites with R Markdown</a> by Yihui Xie and Amber Thomas</li>
+<li><a href="https://proquestionasker.github.io/blog/Making_Site/">Making a Website Using <code>blogdown</code>, Hugo, and GitHub pages</a> also by Amber Thomas</li>
+<li><a href="https://www.znmeb.mobi/2017/05/12/getting-started-with-blogdown/">Getting Started with <code>blogdown</code></a> by M. Edward (Ed) Borasky</li>
+</ul>
+</div>
+<div id="in-rstudio" class="section level1">
+<h1>In RStudio</h1>
+<ol style="list-style-type: decimal">
+<li>Install <code>blogdown</code> from your RStudio console. You need to install <code>devtools</code> first if you don’t have it already installed. You could also install hugo from blogdown as following if you skipped the previous step.</li>
+</ol>
+<pre><code>if (!requireNamespace(&quot;devtools&quot;)) install.packages(&quot;devtools&quot;)
+devtools::install_github(&quot;rstudio/blogdown&quot;)
+blogdown::install_hugo()</code></pre>
+<ol start="2" style="list-style-type: decimal">
+<li>Use the top menu buttons in RStudio to select <code>File -&gt; New Project -&gt; Existing Directory</code>, then browse to the directory on your computer where your website directory should be is and click on the <strong>Create Project</strong> button. This is equivalent to issuing a <code>blogdown::new_site(theme=&quot;XXXX&quot;)</code>command in the Rstudio prompt</li>
+</ol>
+<div class="figure">
+<img src="/post/2018-06-30-using-blogdown_files/r-project-existing-directory.png" alt="Screenshot above: Creating a new project in an existing directory in RStudio" />
+<p class="caption">Screenshot above: Creating a new project in an existing directory in RStudio</p>
+</div>
+<ol start="4" style="list-style-type: decimal">
+<li><p>Now you should be “in” your project in RStudio.</p></li>
+<li><p>You should see the following sub directories in your website folder. Some of following may not be present due to your system configuration.</p></li>
+</ol>
+<div class="figure">
+<img src="/post/2018-06-30-using-blogdown_files/Screen%20Shot%202018-06-30%20at%201.53.55%20PM.png" />
+
+</div>
+<p>You do most of the edits and changes in the content folder. Running <code>hugo</code> command builds the website in the <code>public</code> folder. This is the folder that we will upload to the github account to create a website.</p>
+<p>{{% alert warning %}} Do not manually add anything to the public folder {{% /alert %}}</p>
+<p>If you want to see the preview of the site, look to the viewer pane of Rstudio or use <code>hugo server -D</code> in the terminal.</p>
+<ol start="6" style="list-style-type: decimal">
+<li>Changing themes and other configurations are easy or complicated depending on your theme and your skill level. I recommend not tinkering with the defaults to start with and then gradually changing bits and pieces of the website.</li>
+</ol>
+</div>
+<div id="creating-a-blog-post-in-rmarkdown" class="section level1">
+<h1>Creating a blog post in Rmarkdown</h1>
+<p>Relevant reading:</p>
+<ul>
+<li><a href="https://bookdown.org/yihui/blogdown/rstudio-ide.html"><code>blogdown</code> book chapter on RStudio IDE</a></li>
+<li><a href="https://bookdown.org/yihui/blogdown/output-format.html"><code>blogdown</code> book chapter on output formats</a>: on .md versus .Rmd posts</li>
+<li><a href="https://proquestionasker.github.io/blog/Making_Site/#adding-a-blog-post-or-portfolio-piece">Additional detail from Amber</a> on adding a blog post</li>
+</ul>
+<p>Bottom line:</p>
+<p>Use the <strong>New Post</strong> addin. But, you need the console to do this, so you have to stop <code>blogdown::serve_site</code> by clicking on the red <strong>Stop</strong> button first. The Addin is a Shiny interface that runs this code in your console: <code>blogdown:::new_post_addin()</code>. So, your console needs to be unblocked for it to run. You also need to be “in” your RStudio project or it won’t work.</p>
+<div id="draft-posts" class="section level2">
+<h2>Draft posts</h2>
+<p>Relevant reading:</p>
+<ul>
+<li><a href="https://bookdown.org/yihui/blogdown/local-preview.html"><code>blogdown</code> book chapter on building a website for local preview</a></li>
+</ul>
+<p>Whether you do a markdown or R Markdown post (see below), you should know that in the YAML front matter of your new file, you can add <code>draft: TRUE</code> and you will be able to preview your post using <code>blogdown::serve_site()</code>, but conveniently your post will not show up on your deployed site until you set it to false. Because this is a function built into Hugo, all posts (draft or not) will still end up in your GitHub repo though.</p>
+</div>
+<div id="new-markdown-posts" class="section level2">
+<h2>New markdown posts</h2>
+<p>Pick one of 2 methods:</p>
+<ol style="list-style-type: decimal">
+<li>Use the <strong>New Post</strong> addin and with the radio button at the bottom select <strong>Format: Markdown</strong> (recommended)</li>
+<li>Use the console to author a new <code>.md</code> post:</li>
+</ol>
+<pre><code>blogdown::new_post()
+blogdown::new_post(rmd = FALSE) # false is the default!</code></pre>
+<p>Here are the <code>?new_post</code> arguments:</p>
+<pre><code>new_post(title, kind = &quot;default&quot;, open = interactive(), 
+    author = getOption(&quot;blogdown.author&quot;), categories = NULL, 
+    tags = NULL, date = Sys.Date(), file = NULL, slug = NULL, 
+    subdir = getOption(&quot;blogdown.subdir&quot;, &quot;post&quot;), 
+    rmd = getOption(&quot;blogdown.rmd&quot;, FALSE))</code></pre>
+<p>{{% alert note %}} Remember to use the <strong>Serve Site</strong> addin again so that you can immediately view your changes with every save using <em>LiveReload</em>. {{% /alert %}}</p>
+</div>
+<div id="new-rmarkdown-posts" class="section level2">
+<h2>New RMarkdown posts</h2>
+<p>Again, you have your choice of one of 2 methods:</p>
+<ol style="list-style-type: decimal">
+<li>Use the <strong>New Post</strong> addin and with the radio button at the bottom select <strong>Format: RMarkdown</strong> (recommended)</li>
+<li>Use the console to author a new <code>.Rmd</code> post:</li>
+</ol>
+<pre><code>blogdown::new_post(rmd = TRUE) # false is the default!</code></pre>
+<p>After you edit your <code>.Rmd</code> post, in addition to saving the changes in your <code>.Rmd</code> file, you <em>must</em> use <code>blogdown::serve_site</code>- this is how the output <code>html</code> file needs to be generated.</p>
+<p>{{% alert warning %}} Do <em>not</em> knit your <code>.Rmd</code> posts- use <code>blogdown::serve_site</code> instead. If you happen to hit the knit button, just <strong>Serve Site</strong> again to rewrite the <code>.html</code> file. {{% /alert %}}</p>
+<p>Ultimately, your <a href="https://bookdown.org/yihui/blogdown/output-format.html#output-format">YAML front matter looks something like this</a>; note that some but not all features of <code>rmarkdown::html_document</code> <a href="https://bookdown.org/yihui/blogdown/output-format.html#fn15">are supported in <code>blogdown</code></a>:</p>
+<pre><code>---
+title: &quot;My Awesome Post&quot;
+author: &quot;John Doe&quot;
+date: &quot;2017-02-14&quot;
+output:
+  blogdown::html_page:
+    toc: true
+    toc_depth: 1
+    number_sections: true
+    fig_width: 6
+---</code></pre>
+<p>{{% alert note %}} Remember to use the <strong>Serve Site</strong> addin again so that you can immediately view your changes with every save using <em>LiveReload</em> and your <code>.html</code> file is properly output. {{% /alert %}}</p>
+</div>
+<div id="adding-images-to-a-post" class="section level2">
+<h2>Adding images to a post</h2>
+<p>If you want to include an image that is not a figure created from an R chunk, the <a href="https://github.com/rstudio/blogdown/issues/45">recommended method</a> is to:</p>
+<ol style="list-style-type: decimal">
+<li>Add the image to your <code>/static/img/</code> folder, then</li>
+<li>Reference the image using the relative file path as follows:</li>
+</ol>
+<pre><code>![my-image](/img/my-image.png)</code></pre>
+</div>
+</div>
+<div id="github-account" class="section level1">
+<h1>GitHub Account</h1>
+<p>First you need to create a <a href="www.github.com">Github</a> account. This will also be the website name.</p>
+<ul>
+<li>Create a new repository called <code>yourusername.github.io.</code> and make it public.</li>
+</ul>
+<div class="figure">
+<img src="/post/2018-06-30-using-blogdown_files/newrepo.png" width="200" height="200" />
+
+</div>
+<ul>
+<li>Using terminal go to <code>website\public</code> using <code>cd</code> and issue the following commands</li>
+</ul>
+<pre><code>git init
+git remote add origin https://github.com/yourusername/yourusername.github.git.io
+git add .
+git commit -m &quot;Initial Commit&quot;
+git push -u origin master
+</code></pre>
+<ol start="4" style="list-style-type: decimal">
+<li>The first two commands will only need to be issued once. The last three commands suitably modified will update <code>yourusername.github.io</code></li>
+</ol>
+<p>That is all there is to it. If you want to add more posts, keep adding a new post page in <code>R markdown</code>, create a static html page and add to the github repo to update your website.</p>
+<p>Happy blogging.</p>
+</div>
